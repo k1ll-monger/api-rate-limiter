@@ -1,173 +1,274 @@
-# API Rate Limiting Middleware & Real-Time Analytics Dashboard
+# API Rate Limiter & Real-Time Analytics Service
 
-Designed & Developed by **Kaustubh** ([@k1ll-monger](https://github.com/k1ll-monger))
-
-A production-grade, high-performance Node.js & Express API Rate Limiter service utilizing an atomic **Sliding Window Counter** algorithm. Includes a real-time analytics engine and an interactive single-page dashboard for traffic monitoring, rate limit testing, and HTTP metadata inspection.
+A lightweight, modular **Node.js + Express** rate-limiting middleware that implements the **Sliding Window Counter** algorithm to protect APIs from traffic spikes and abuse. The project also includes a real-time analytics engine and an interactive dashboard for monitoring throughput, latency, and rate-limit activity.
 
 ---
 
-## 🏛️ System Architecture
+## Overview
 
-The service consists of four core decoupled modules designed with clean separation of concerns:
+This project demonstrates how modern API rate limiting works using the Sliding Window Counter algorithm. Unlike a traditional fixed-window approach, it minimizes burst traffic around window boundaries while maintaining constant memory usage per client.
 
-```
-                  +----------------------------------------------+
-                  |         HTTP Client / Browser Dashboard      |
-                  +----------------------------------------------+
-                                         |
-                       x-api-key / Client IP Header
-                                         v
-                  +----------------------------------------------+
-                  |    Express Server & Rate Limiter Middleware  |
-                  +----------------------------------------------+
-                                 /                \
-          Tier Lookup & Window Check            Record Stats & Latency
-                               /                    \
-  +------------------------------------+    +------------------------------------+
-  |      SlidingWindowStore            |    |        AnalyticsCollector          |
-  |  - Sliding Window Math Calculation |    |  - Real-Time Requests & Latencies  |
-  |  - Garbage Collector for Old Logs  |    |  - 60s Rolling Second Time-Series  |
-  |  - Abstract Storage Interface      |    |  - Top 50 Activity Log Inspector   |
-  +------------------------------------+    +------------------------------------+
-                                                      |
-                                            GET /api/v1/metrics
-                                                      v
-                                            +-------------------+
-                                            | Chart.js Streaming|
-                                            |     Dashboard     |
-                                            +-------------------+
-```
-
-### Component Breakdown
-
-| Component | File Path | Responsibilities |
-|---|---|---|
-| **Tier Rules** | [`src/config/tiers.js`](file:///c:/Users/kaust/Downloads/kaunew/src/config/tiers.js) | Defines rate limits for `Free`, `Pro`, `Enterprise`, and `Anonymous` IP fallbacks. |
-| **Sliding Window Store** | [`src/services/slidingWindowStore.js`](file:///c:/Users/kaust/Downloads/kaunew/src/services/slidingWindowStore.js) | Memory-efficient sliding window math, atomic counter updates, garbage collection. |
-| **Analytics Engine** | [`src/services/analyticsCollector.js`](file:///c:/Users/kaust/Downloads/kaunew/src/services/analyticsCollector.js) | Tracks requests/sec, pass/block ratios, latencies, and time-series streaming data. |
-| **Express Middleware** | [`src/middleware/rateLimiter.js`](file:///c:/Users/kaust/Downloads/kaunew/src/middleware/rateLimiter.js) | Enforces limits, injects RFC `X-RateLimit-*` and `Retry-After` headers, handles 429 status. |
-| **Protected API Endpoints** | [`src/routes/api.js`](file:///c:/Users/kaust/Downloads/kaunew/src/routes/api.js) | Sample API routes (`/resource`, `/submit`, `/analytics`). |
-| **Metrics API** | [`src/routes/metrics.js`](file:///c:/Users/kaust/Downloads/kaunew/src/routes/metrics.js) | Exposes `/api/v1/metrics` and reset endpoints for the frontend dashboard. |
-| **Interactive Dashboard** | [`public/index.html`](file:///c:/Users/kaust/Downloads/kaunew/public/index.html) | Modern dark glassmorphism SPA with live KPI cards, Chart.js traffic streaming, and simulator panel. |
+The service supports multiple API key tiers, exposes standard rate-limit headers, and provides a live analytics dashboard for monitoring requests in real time.
 
 ---
 
-## 🧮 Mathematical Breakdown: Sliding Window Counter Algorithm
+## Features
 
-The **Sliding Window Counter** algorithm combines the memory efficiency of the *Fixed Window* algorithm with the boundary precision of *Sliding Window Logs*.
-
-### The Boundary Problem in Fixed Window
-In a standard Fixed Window algorithm (e.g. 10 requests per minute from 12:00 to 12:01):
-- A client can send 10 requests at 12:00:59, and another 10 requests at 12:01:01.
-- Even though both windows individually respect the 10 req/min limit, the client successfully executed **20 requests in a 2-second interval across the window boundary** (2x the allowed throughput).
-
-### Sliding Window Counter Solution
-Instead of storing timestamp logs for every request (which consumes $O(N)$ memory), we maintain request counts for discrete fixed windows of length $W$ (e.g., $W = 60000\text{ ms}$).
-
-For any request arriving at timestamp $T$:
-1. Identify Current Window ID:
-   $$W_{\text{curr}} = \lfloor \frac{T}{W} \rfloor$$
-2. Identify Previous Window ID:
-   $$W_{\text{prev}} = W_{\text{curr}} - 1$$
-3. Calculate Time Elapsed in Current Window:
-   $$t_{\text{elapsed}} = T \pmod W$$
-4. Calculate Weight of Previous Window:
-   $$\text{Weight}_{\text{prev}} = \frac{W - t_{\text{elapsed}}}{W}$$
-5. Calculate Estimated Request Count in the Sliding Window:
-   $$\text{Count}_{\text{sliding}} = \text{Count}(W_{\text{curr}}) + \left( \text{Count}(W_{\text{prev}}) \times \text{Weight}_{\text{prev}} \right)$$
-
-### Decision Logic
-- If $\lfloor \text{Count}_{\text{sliding}} \rfloor + 1 > \text{Limit}$:
-  - Reject request with **HTTP 429 Too Many Requests**.
-  - Calculate `Retry-After`:
-    $$\text{RetryAfter} = \max\left(1, \left\lceil \frac{W - t_{\text{elapsed}}}{1000} \right\rceil\right) \text{ seconds}$$
-- Otherwise:
-  - Increment $\text{Count}(W_{\text{curr}})$ by 1.
-  - Allow request and set standard headers:
-    - `X-RateLimit-Limit`: Maximum requests allowed per window.
-    - `X-RateLimit-Remaining`: $\max(0, \text{Limit} - \lfloor \text{Count}_{\text{sliding}} \rfloor)$.
-    - `X-RateLimit-Reset`: $\lceil \frac{(W_{\text{curr}} + 1) \times W}{1000} \rceil$ (epoch seconds).
+- Sliding Window Counter rate-limiting algorithm
+- O(1) memory usage per client
+- Multiple API rate tiers (Free, Pro, Enterprise)
+- Client IP fallback for anonymous requests
+- RFC-compliant rate limit headers
+- Real-time analytics collection
+- Interactive dashboard with live charts
+- Traffic simulator for testing rate limits
+- Modular Express middleware architecture
 
 ---
 
-## 🚦 Tier Configurations
+## Tech Stack
 
-Rate limits are configured in [`src/config/tiers.js`](file:///c:/Users/kaust/Downloads/kaunew/src/config/tiers.js):
-
-| Tier Name | Header Key | Rate Limit | Identification Strategy |
-|---|---|---|---|
-| **Free Tier** | `x-api-key: key-free-123` | 10 req / min | Key-based (`key:key-free-123`) |
-| **Pro Tier** | `x-api-key: key-pro-456` | 50 req / min | Key-based (`key:key-pro-456`) |
-| **Enterprise Tier** | `x-api-key: key-enterprise-789` | 200 req / min | Key-based (`key:key-enterprise-789`) |
-| **Anonymous (Fallback)** | None | 15 req / min | IP-based (`ip:127.0.0.1`) |
+- Node.js
+- Express.js
+- HTML
+- CSS
+- JavaScript
+- Chart.js
 
 ---
 
-## 🚀 Quick Start & Local Execution
+## Getting Started
 
 ### Prerequisites
-- Node.js (v16+ recommended)
+
+- Node.js (v18 or later)
 - npm
 
-### 1. Install Dependencies
+### Clone the Repository
+
+```bash
+git clone https://github.com/k1ll-monger/api-rate-limiter.git
+cd api-rate-limiter
+```
+
+### Install Dependencies
+
 ```bash
 npm install
 ```
 
-### 2. Start the Server
+### Start the Application
+
+Production mode:
+
 ```bash
 npm start
 ```
 
-The Express server will initialize on port 3000:
-- **Dashboard UI**: `http://localhost:3000/`
-- **Metrics JSON API**: `http://localhost:3000/api/v1/metrics`
-- **Protected Endpoint**: `http://localhost:3000/api/v1/resource`
+Development mode:
+
+```bash
+npm run dev
+```
+
+### Access the Application
+
+Dashboard:
+
+```
+http://localhost:3000
+```
+
+Protected API:
+
+```
+http://localhost:3000/api/v1/resource
+```
+
+Metrics API:
+
+```
+http://localhost:3000/api/v1/metrics
+```
 
 ---
 
-## 🧪 Testing with `curl`
+## Project Structure
 
-### Test 1: Anonymous IP Request
+```text
+.
+├── public/
+│   ├── index.html
+│   ├── app.js
+│   └── style.css
+│
+├── src/
+│   ├── config/
+│   │   └── tiers.js
+│   │
+│   ├── middleware/
+│   │   └── rateLimiter.js
+│   │
+│   ├── routes/
+│   │   ├── api.js
+│   │   └── metrics.js
+│   │
+│   └── services/
+│       ├── analyticsCollector.js
+│       └── slidingWindowStore.js
+│
+├── server.js
+├── package.json
+└── README.md
+```
+
+---
+
+## Sliding Window Counter Algorithm
+
+### Problem with Fixed Window Rate Limiting
+
+A fixed-window limiter resets its counter at the end of each time window.
+
+For example, if the limit is **10 requests per minute**, a client could send:
+
+- 10 requests at **12:00:59**
+- 10 more requests at **12:01:01**
+
+Although each window individually satisfies the limit, the client effectively sends **20 requests within 2 seconds**.
+
+### Sliding Window Counter
+
+Instead of storing every request timestamp, this implementation stores only:
+
+- Current window count
+- Previous window count
+
+The effective request count is estimated using:
+
+```text
+Estimated Count =
+Current Window Count +
+Previous Window Count ×
+((Window Size − Time Elapsed) / Window Size)
+```
+
+If
+
+```text
+Estimated Count + 1 > Rate Limit
+```
+
+the request is rejected with an HTTP **429 Too Many Requests** response.
+
+This approach provides smoother traffic control while requiring only constant memory per client.
+
+---
+
+## Rate Limit Tiers
+
+| Tier | Authentication | Limit |
+|------|----------------|-------|
+| Free | `x-api-key: key-free-123` | 10 requests/minute |
+| Pro | `x-api-key: key-pro-456` | 50 requests/minute |
+| Enterprise | `x-api-key: key-enterprise-789` | 200 requests/minute |
+| Anonymous | Client IP | 15 requests/minute |
+
+The rate tiers can be modified in:
+
+```
+src/config/tiers.js
+```
+
+---
+
+## API Endpoints
+
+### Protected Resource
+
+```
+GET /api/v1/resource
+```
+
+Returns a sample protected response while enforcing rate limits.
+
+### Metrics
+
+```
+GET /api/v1/metrics
+```
+
+Returns analytics such as:
+
+- Total requests
+- Successful requests
+- Rate-limited requests
+- Average latency
+- Request throughput
+
+---
+
+## Testing
+
+### Anonymous Request
+
 ```bash
 curl -i http://localhost:3000/api/v1/resource
 ```
-*Expected output:* `X-RateLimit-Limit: 15`, `X-RateLimit-Remaining: 14`, Status `200 OK`.
 
-### Test 2: Free Tier Key Request
-```bash
-curl -i -H "x-api-key: key-free-123" http://localhost:3000/api/v1/resource
-```
-*Expected output:* `X-RateLimit-Limit: 10`, `X-RateLimit-Remaining: 9`, Status `200 OK`.
+### Free Tier Request
 
-### Test 3: Trigger Limit Breach (HTTP 429)
-Execute 11 consecutive requests within 60 seconds using the Free Tier key:
 ```bash
-for i in {1..11}; do curl -i -H "x-api-key: key-free-123" http://localhost:3000/api/v1/resource; done
+curl -i \
+-H "x-api-key: key-free-123" \
+http://localhost:3000/api/v1/resource
 ```
-*Expected output on 11th request:*
-- **Status**: `429 Too Many Requests`
-- **Header**: `Retry-After: 58`
-- **Body**:
+
+### Trigger Rate Limiting
+
+```bash
+for i in {1..12}
+do
+  curl -i \
+  -H "x-api-key: key-free-123" \
+  http://localhost:3000/api/v1/resource
+done
+```
+
+---
+
+## Example 429 Response
+
+```http
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 58
+Retry-After: 58
+Content-Type: application/json
+```
+
 ```json
 {
   "error": "Too Many Requests",
   "message": "Rate limit exceeded for Free Tier. Maximum 10 requests per minute allowed.",
   "tier": "Free Tier",
-  "limit": 10,
-  "remaining": 0,
-  "retryAfterSeconds": 58,
-  "resetTime": 1785500000
+  "retryAfterSeconds": 58
 }
 ```
 
 ---
 
-## 💼 Resume Bullet Points for SDE Candidates
 
-Below are production-grade resume points highlighting backend system design and API engineering achievements:
+## Future Improvements
 
-- **Architected and implemented a high-performance API Rate Limiter middleware** in Node.js/Express using a custom **Sliding Window Counter algorithm**, mitigating border burst vulnerability while reducing memory overhead by **$O(N) \rightarrow O(1)$** per client compared to sliding window logs.
-- **Engineered multi-tenant tier-based access control** enforcing key-level throttling (`Free`: 10 req/min, `Pro`: 50 req/min) with automated client IP fallbacks, returning RFC-compliant headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`).
-- **Designed a real-time observability engine & analytics dashboard** powered by Express and Chart.js, recording microsecond request latencies, pass/block ratios, and continuous 60-second time-series traffic metrics.
-- **Built an in-memory thread-safe state store** with automatic garbage collection for stale window counters, structured with a swappable storage adapter interface to enable seamless migration to distributed Redis clusters.
+- Redis-based distributed rate limiting
+- Token Bucket and Leaky Bucket implementations
+- Persistent analytics storage
+- User authentication
+- Docker support
+- Unit and integration tests
+- Prometheus metrics integration
+- Swagger/OpenAPI documentation
+
+---
