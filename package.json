@@ -1,0 +1,27 @@
+{
+  "name": "api-rate-limiter-analytics-dashboard",
+  "version": "1.0.0",
+  "description": "Production-grade API Rate Limiting Middleware & Real-Time Analytics Dashboard service",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "rate-limiter",
+    "sliding-window",
+    "express",
+    "middleware",
+    "analytics",
+    "dashboard"
+  ],
+  "author": "Kaustubh (https://github.com/k1ll-monger)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k1ll-monger/api-rate-limiter.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

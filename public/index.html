@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Rate Limiter & Real-Time Analytics Dashboard</title>
+  <meta name="description" content="Production-grade API Rate Limiting Middleware with Sliding Window Counter & Real-Time Traffic Analytics Dashboard.">
+  
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="bg-[#0b0f17] text-slate-100 font-sans min-h-screen selection:bg-indigo-500 selection:text-white antialiased">
+
+  <!-- Subtle Mesh Background -->
+  <div class="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.1),rgba(255,255,255,0))]"></div>
+
+  <!-- Full Width Main Shell -->
+  <div class="relative z-10 w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Top Navigation / Header -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-[#111827]/80 backdrop-blur-md border border-slate-800/80 px-6 py-4 rounded-xl shadow-sm">
+      <div class="flex items-center space-x-3.5">
+        <div class="w-10 h-10 rounded-lg bg-indigo-600/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <i class="fa-solid fa-gauge-high text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-lg sm:text-xl font-bold text-white tracking-tight">
+              API Rate Limiter & Traffic Analytics
+            </h1>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse"></span>
+              Active Engine
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Sliding Window Counter Algorithm • Tier-Based Header Throttle • Real-Time Collector
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button id="resetMetricsBtn" class="flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-medium border border-slate-700/80 transition duration-150">
+          <i class="fa-solid fa-rotate-right text-indigo-400"></i>
+          <span>Reset Metrics</span>
+        </button>
+        <a href="https://github.com/k1ll-monger" target="_blank" class="flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 text-xs font-medium border border-indigo-500/30 transition duration-150">
+          <i class="fa-brands fa-github text-indigo-400"></i>
+          <span>Kaustubh (k1ll-monger)</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Top KPI Cards Grid (4 Columns Full Width) -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      
+      <!-- KPI 1: Total Volume -->
+      <div class="bg-[#111827]/80 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between hover:border-slate-700 transition duration-150 shadow-sm">
+        <div>
+          <div class="flex justify-between items-center text-xs font-medium text-slate-400">
+            <span>TOTAL REQUESTS</span>
+            <i class="fa-solid fa-server text-slate-500"></i>
+          </div>
+          <h3 id="statTotalRequests" class="text-3xl font-extrabold text-white mt-2 tracking-tight">0</h3>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+          <span>Processed requests</span>
+          <span class="font-mono text-indigo-400">All Tiers</span>
+        </div>
+      </div>
+
+      <!-- KPI 2: Passed vs Blocked Ratio -->
+      <div class="bg-[#111827]/80 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between hover:border-slate-700 transition duration-150 shadow-sm">
+        <div>
+          <div class="flex justify-between items-center text-xs font-medium text-slate-400">
+            <span>PASSED VS BLOCKED</span>
+            <i class="fa-solid fa-shield-halved text-slate-500"></i>
+          </div>
+          <div class="flex items-baseline space-x-2 mt-2">
+            <span id="statPassedRatio" class="text-3xl font-extrabold text-emerald-400">100%</span>
+            <span class="text-xs text-slate-400">Allowed</span>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+          <span>Throttled (HTTP 429)</span>
+          <span id="statBlockedCount" class="font-mono font-semibold text-rose-400">0</span>
+        </div>
+      </div>
+
+      <!-- KPI 3: System Latency -->
+      <div class="bg-[#111827]/80 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between hover:border-slate-700 transition duration-150 shadow-sm">
+        <div>
+          <div class="flex justify-between items-center text-xs font-medium text-slate-400">
+            <span>AVERAGE LATENCY</span>
+            <i class="fa-solid fa-bolt text-slate-500"></i>
+          </div>
+          <div class="flex items-baseline space-x-1.5 mt-2">
+            <h3 id="statAvgLatency" class="text-3xl font-extrabold text-white">0</h3>
+            <span class="text-sm font-medium text-slate-400">ms</span>
+          </div>
+        </div>
+        <div class="mt-4 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+          <div class="flex items-center space-x-1.5">
+            <span id="latencyBadge" class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            <span id="latencyStatusText" class="text-slate-400">Optimal (&lt;20ms)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI 4: Rate Limit Rules -->
+      <div class="bg-[#111827]/80 border border-slate-800/80 p-5 rounded-xl flex flex-col justify-between hover:border-slate-700 transition duration-150 shadow-sm">
+        <div>
+          <div class="flex justify-between items-center text-xs font-medium text-slate-400">
+            <span>TIER SPECIFICATIONS</span>
+            <i class="fa-solid fa-key text-slate-500"></i>
+          </div>
+          <div class="mt-2.5 space-y-1.5 text-xs">
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Free:</span>
+              <span class="font-mono font-medium text-indigo-400">10 req/min</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Pro:</span>
+              <span class="font-mono font-medium text-emerald-400">50 req/min</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span class="text-slate-400">Anonymous:</span>
+              <span class="font-mono font-medium text-amber-400">15 req/min</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Main Content Area: Full Width Responsive Grid -->
+    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+      <!-- Left 3 Columns: Real-Time Traffic Chart -->
+      <div class="xl:col-span-3 bg-[#111827]/80 border border-slate-800/80 p-6 rounded-xl space-y-4 flex flex-col justify-between shadow-sm">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+              <i class="fa-solid fa-chart-line text-indigo-400"></i>
+              Real-Time Traffic Throughput
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Streaming Requests per Second (60s Window)</p>
+          </div>
+          <div class="flex items-center space-x-5 text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span class="text-slate-300 font-medium">Allowed (2xx)</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+              <span class="text-slate-300 font-medium">Blocked (429)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="relative h-72 sm:h-96 w-full mt-2">
+          <canvas id="trafficChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Right 1 Column: Interactive Traffic Simulator Panel -->
+      <div class="xl:col-span-1 bg-[#111827]/80 border border-slate-800/80 p-6 rounded-xl space-y-5 flex flex-col justify-between shadow-sm">
+        <div>
+          <div class="flex items-center justify-between border-b border-slate-800/80 pb-3">
+            <h2 class="text-base font-semibold text-white flex items-center gap-2">
+              <i class="fa-solid fa-sliders text-indigo-400"></i>
+              Traffic Simulator
+            </h2>
+            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">TEST CONTROL</span>
+          </div>
+
+          <!-- Simulator Form Controls -->
+          <div class="mt-4 space-y-4">
+            
+            <!-- API Key Selector -->
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1.5">
+                API Key Tier (<code class="text-indigo-400">x-api-key</code>)
+              </label>
+              <select id="simApiKeySelect" class="w-full bg-[#0b0f17] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                <option value="anonymous">Anonymous (No Key) - 15 req/min</option>
+                <option value="key-free-123" selected>Free Key (key-free-123) - 10 req/min</option>
+                <option value="key-pro-456">Pro Key (key-pro-456) - 50 req/min</option>
+                <option value="key-enterprise-789">Enterprise Key (key-enterprise-789) - 200 req/min</option>
+              </select>
+            </div>
+
+            <!-- Target Endpoint Selector -->
+            <div>
+              <label class="block text-xs font-medium text-slate-300 mb-1.5">
+                Target Endpoint
+              </label>
+              <select id="simEndpointSelect" class="w-full bg-[#0b0f17] border border-slate-700/80 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono">
+                <option value="/api/v1/resource">GET /api/v1/resource</option>
+                <option value="/api/v1/submit">POST /api/v1/submit</option>
+                <option value="/api/v1/analytics">GET /api/v1/analytics</option>
+              </select>
+            </div>
+
+            <!-- Simulation Action Buttons -->
+            <div class="space-y-2 pt-2">
+              <button id="simSingleBtn" class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-medium border border-slate-700/80 transition flex items-center justify-center space-x-2">
+                <i class="fa-solid fa-paper-plane text-indigo-400"></i>
+                <span>Send Single Request</span>
+              </button>
+
+              <div class="grid grid-cols-2 gap-2">
+                <button id="simNormalBtn" class="py-2 px-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5">
+                  <i class="fa-solid fa-play text-[10px]"></i>
+                  <span id="simNormalLabel">Normal (5 r/s)</span>
+                </button>
+
+                <button id="simBurstBtn" class="py-2 px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-medium transition flex items-center justify-center space-x-1.5">
+                  <i class="fa-solid fa-bolt text-[10px]"></i>
+                  <span id="simBurstLabel">Spike (30 r/s)</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Simulator Live Status Box -->
+        <div id="simStatusBox" class="bg-[#0b0f17] p-3 rounded-lg border border-slate-800 flex items-center justify-between text-xs mt-4">
+          <div class="flex items-center space-x-2">
+            <span id="simStatusDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+            <span id="simStatusText" class="text-slate-400 font-mono">Status: Idle</span>
+          </div>
+          <span id="simRateText" class="text-slate-500 font-mono text-[11px]">0 req/s</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Full Width Live Request Log & Response Inspector -->
+    <section class="bg-[#111827]/80 border border-slate-800/80 p-6 rounded-xl space-y-4 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800/80 pb-3">
+        <div>
+          <h2 class="text-base font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-indigo-400"></i>
+            Live Request & Response Inspector
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Real-time HTTP header audit (<code class="text-slate-300">X-RateLimit-*</code>, <code class="text-slate-300">Retry-After</code>)</p>
+        </div>
+        <div class="text-xs text-slate-400 font-mono">
+          Showing latest <span class="text-indigo-400 font-bold">50</span> events
+        </div>
+      </div>
+
+      <!-- Full Width Logs Table -->
+      <div class="overflow-x-auto rounded-lg border border-slate-800/80 bg-[#0b0f17]">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-slate-800/80 bg-slate-900/60 text-slate-400 font-mono text-[11px] uppercase tracking-wider">
+              <th class="py-2.5 px-4 font-medium">Time</th>
+              <th class="py-2.5 px-4 font-medium">Method & Endpoint</th>
+              <th class="py-2.5 px-4 font-medium">Status Code</th>
+              <th class="py-2.5 px-4 font-medium">Tier Key</th>
+              <th class="py-2.5 px-4 font-medium">Remaining / Limit</th>
+              <th class="py-2.5 px-4 font-medium">Reset / Retry-After</th>
+              <th class="py-2.5 px-4 text-right font-medium">Latency</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody" class="divide-y divide-slate-800/50 font-mono">
+            <tr>
+              <td colspan="7" class="py-8 text-center text-slate-500 font-sans">
+                <i class="fa-solid fa-inbox text-xl mb-2 block text-slate-600"></i>
+                No traffic logged yet. Trigger requests using the Traffic Simulator panel above.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 py-3 border-t border-slate-800/60">
+      <p>© API Rate Limiter Service • Designed & Engineered by <a href="https://github.com/k1ll-monger" target="_blank" class="text-indigo-400 hover:underline font-medium">Kaustubh (@k1ll-monger)</a></p>
+      <p class="mt-1 sm:mt-0 font-mono text-[11px]">Express.js Sliding Window Counter Engine</p>
+    </footer>
+
+  </div>
+
+  <!-- Dashboard Application JS -->
+  <script src="/app.js"></script>
+</body>
+</html>
